@@ -67,19 +67,16 @@ public class PropertySquare extends Square {
         if (canBuy(p)) {
             p.deductMoney(price);
             this.owner = p;
-            // Vào mua rồi thì sẽ mặc định là cấp 1 sau lần mua đó (đối với ô đất có thể xây nhà)
-            if (this.houseCost > 0) {
-                this.houseLevel = 1;
-            }
+            this.houseLevel = 0; // Sau khi mua là đất trống (houseLevel=0), chỉ khi xây nhà mới tăng cấp
             p.addProperty(this);
             return true;
         }
         return false;
     }
 
-    // Kiểm tra có thể nâng cấp
+    // Kiểm tra có thể nâng cấp (chỉ được nâng cấp khi đã đủ bộ màu theo RULES.md)
     public boolean canUpgrade(Player p) {
-        return owner == p && houseCost > 0 && houseLevel < 5 && p.getBalance() >= houseCost;
+        return owner == p && houseCost > 0 && colorGroupComplete && houseLevel < 5 && p.getBalance() >= houseCost;
     }
     // Thực hiện nâng cấp nhà/khách sạn (nâng 1 cấp 1 lần)
     public boolean upgrade(Player p) {

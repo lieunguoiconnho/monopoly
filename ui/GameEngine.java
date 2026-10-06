@@ -34,6 +34,8 @@ public class GameEngine {
         void onBuyPrompt(Player player, PropertySquare property);
         void onJailPrompt(Player player);
         void onUpgradePrompt(Player player, List<PropertySquare> upgradeable);
+        void onCardDrawn(Player player, String cardType, ProjectOop.card.Card card);
+        void onRentPaid(Player player, Player owner, PropertySquare property, int rent);
         void onBankruptcy(Player bankrupt, Player creditor);
         void onGameOver(Player winner);
         void onMessage(String msg);
@@ -181,14 +183,12 @@ public class GameEngine {
             PropertySquare prop = (PropertySquare) sq;
             if (prop.buyProperty(p)) {
                 board.updateColorGroups();
-                String lvlInfo = prop.getHouseCost() > 0 ? " → Mặc định Cấp 1 🏠" : "";
-                msg("✅ " + p.getName() + " mua " + prop.getName() + " ($" + prop.getPrice() + ")" + lvlInfo);
+                msg("✅ " + p.getName() + " mua " + prop.getName() + " ($" + prop.getPrice() + ") [Đất trống - Cấp 0]");
                 emit(l -> l.onBoardUpdated());
             }
         } else if (!doBuy && sq instanceof PropertySquare) {
             msg(p.getName() + " quyết định không mua " + sq.getName());
         }
-        // Vào mua rồi thì mặc định là cấp 1, muốn nâng cấp phải những lần vào sau đó
         finishRollPhase();
     }
 
@@ -256,16 +256,30 @@ public class GameEngine {
 
         if (p.isBankrupt()) { handleBankruptcy(p); return; }
 
+        // Thông báo tiền thuê nếu bước vào ô đất của người khác
+        if (sq instanceof PropertySquare) {
+            PropertySquare prop = (PropertySquare) sq;
+            if (prop.getOwner() != null && prop.getOwner() != p) {
+                int rent = (prop instanceof UtilitySquare)
+                        ? ((UtilitySquare) prop).getRent(p.getLastDiceRoll())
+                        : prop.getRent();
+                emit(l -> l.onRentPaid(p, prop.getOwner(), prop, rent));
+                msg("🏠 " + p.getName() + " vào ô của " + prop.getOwner().getName() + " (" + prop.getName() + ") → Trả tiền thuê: $" + rent);
+            }
+        }
+
         // Thông báo nội dung thẻ bài nếu vừa rút thẻ Cơ Hội / Khí Vận
         if (sq instanceof ChanceSquare) {
             ProjectOop.card.Card c = ((ChanceSquare) sq).getLastDrawnCard();
             if (c != null) {
                 msg("⭐ [Cơ Hội]: " + c.getDescription());
+                emit(l -> l.onCardDrawn(p, "Cơ Hội", c));
             }
         } else if (sq instanceof CommunityChestSquare) {
             ProjectOop.card.Card c = ((CommunityChestSquare) sq).getLastDrawnCard();
             if (c != null) {
                 msg("🎁 [Khí Vận]: " + c.getDescription());
+                emit(l -> l.onCardDrawn(p, "Khí Vận", c));
             }
         }
 
@@ -290,8 +304,8 @@ public class GameEngine {
         Square finalSq = board.getSquare(p.getPosition());
 
         // Xử lý ô đất:
-        // 1. Nếu ô đất trống → Chỉ được vào mua (mua xong mặc định Cấp 1, không nâng cấp ngay)
-        // 2. Nếu đã là chủ sở hữu ô đó → Mỗi lần vào chỉ được nâng cấp 1 lần
+        // 1. Nếu ô đất trống → Quyết định mua đất
+        // 2. Nếu đã là chủ sở hữu ô đó → Quyết định nâng cấp nếu đủ điều kiện
         if (finalSq instanceof PropertySquare) {
             PropertySquare prop = (PropertySquare) finalSq;
             if (prop.getOwner() == null) {
@@ -300,7 +314,7 @@ public class GameEngine {
                     emit(l -> l.onBuyPrompt(p, prop));
                     return;
                 } else {
-                    msg("💸 " + p.getName() + " không đủ $" + prop.getPrice() + " để mua " + prop.getName());
+                    msg("💸 " + p.getName() + " không đủ $" + prop.getPrice() + " để mua " + prop.getName() + " (Số dư: $" + p.getBalance() + ").");
                 }
             } else if (prop.getOwner() == p) {
                 if (prop.canUpgrade(p)) {
@@ -312,6 +326,8 @@ public class GameEngine {
                 } else if (prop.getHouseCost() > 0) {
                     if (prop.getHouseLevel() >= 5) {
                         msg("🏨 " + prop.getName() + " đã đạt cấp tối đa (Khách sạn).");
+                    } else if (!prop.isColorGroupComplete()) {
+                        msg("ℹ " + p.getName() + " cần sở hữu trọn bộ màu " + (prop.getColorGroup() != null ? prop.getColorGroup().name() : "") + " để xây nhà trên " + prop.getName());
                     } else if (p.getBalance() < prop.getHouseCost()) {
                         msg("💸 " + p.getName() + " không đủ $" + prop.getHouseCost() + " để nâng cấp " + prop.getName());
                     }

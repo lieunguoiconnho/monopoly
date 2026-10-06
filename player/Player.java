@@ -22,12 +22,19 @@ public class Player {
     private boolean inJail;
     private int turnsInJail;
 
+    public static final int INITIAL_BALANCE = 1500;
+
     //4.constructor của 1 player
     public Player(String name)
     {
+        this(name, INITIAL_BALANCE);
+    }
+
+    public Player(String name, int initialBalance)
+    {
         this.name = name;
         this.position = 0;
-        this.balance = 200;
+        this.balance = initialBalance;
         this.isBankrupt = false;
         this.lastDiceRoll = 0;
         this.inJail = false;

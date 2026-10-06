@@ -251,9 +251,8 @@ public class GameController {
     private void handleBuyDecision(Player p, PropertySquare prop) {
         if (prop.getOwner() != null) return; // Đã có chủ
 
-        String lvlNote = prop.getHouseCost() > 0 ? " (sau khi mua mặc định là Cấp 1)" : "";
-        System.out.printf("%s có thể mua \"%s\" với giá $%d (tiền hiện có: $%d)%s%n",
-                p.getName(), prop.getName(), prop.getPrice(), p.getBalance(), lvlNote);
+        System.out.printf("%s có thể mua \"%s\" với giá $%d (tiền hiện có: $%d)%n",
+                p.getName(), prop.getName(), prop.getPrice(), p.getBalance());
 
         if (p.getBalance() < prop.getPrice()) {
             System.out.println("Không đủ tiền để mua.");
@@ -264,8 +263,7 @@ public class GameController {
         int choice = readInt(1, 2);
         if (choice == 1) {
             if (prop.buyProperty(p)) {
-                String extra = prop.getHouseCost() > 0 ? " (Mặc định Cấp 1 🏠)" : "";
-                System.out.println("✅ Mua thành công! Còn $" + p.getBalance() + extra);
+                System.out.println("✅ Mua thành công! Còn $" + p.getBalance() + " (Đất trống - Cấp 0)");
                 board.updateColorGroups();
             }
         }
@@ -276,6 +274,8 @@ public class GameController {
             if (prop.getHouseCost() > 0) {
                 if (prop.getHouseLevel() >= 5) {
                     System.out.println("🏨 " + prop.getName() + " đã đạt cấp tối đa (Khách sạn).");
+                } else if (!prop.isColorGroupComplete()) {
+                    System.out.println("ℹ Bạn cần sở hữu trọn bộ màu để xây nhà trên " + prop.getName() + ".");
                 } else if (p.getBalance() < prop.getHouseCost()) {
                     System.out.println("💸 Bạn không đủ $" + prop.getHouseCost() + " để nâng cấp ô này.");
                 }

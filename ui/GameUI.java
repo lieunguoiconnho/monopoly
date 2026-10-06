@@ -435,11 +435,100 @@ public class GameUI extends JFrame implements GameEngine.GameListener {
     @Override public void onSquareEffect(Player p,String sq,String msg){ SwingUtilities.invokeLater(()->log("📍 "+msg)); }
     @Override public void onBuyPrompt(Player p,PropertySquare prop){
         SwingUtilities.invokeLater(()->{
-            String info=prop.getHouseCost()>0?" (sau khi mua mặc định Cấp 1 🏠)":"";
-            log("💰 Mua \""+prop.getName()+"\" $"+prop.getPrice()+"?"+info);
-            buyPromptLabel.setText("💰 Mua "+trunc(prop.getName(),14)+" ($"+prop.getPrice()+")? [Cấp 1]");
+            log("💰 Mua \"" + prop.getName() + "\" $" + prop.getPrice() + "?");
+            buyPromptLabel.setText("💰 Mua " + trunc(prop.getName(),14) + " ($" + prop.getPrice() + ")?");
             showCard("BUY");
+
+            int res = JOptionPane.showConfirmDialog(
+                GameUI.this,
+                "<html><div style='font-family:sans-serif;padding:6px;width:240px;'>"
+                + "<h3 style='color:#00C3AF;margin:0 0 6px 0;'>💰 THÔNG BÁO MUA ĐẤT</h3>"
+                + "<p>Người chơi: <b>" + p.getName() + "</b></p>"
+                + "<p>Dừng tại: <b>" + prop.getName() + "</b> (Ô " + prop.getPosition() + ")</p>"
+                + "<p>Giá bán: <b style='color:#3CD078;'>$" + prop.getPrice() + "</b> | Số dư: <b>$" + p.getBalance() + "</b></p>"
+                + "<p>Bạn có muốn mua ô này không?</p></div></html>",
+                "Mua Đất - " + prop.getName(),
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.QUESTION_MESSAGE
+            );
+            if (res == JOptionPane.YES_OPTION) {
+                engine.actionBuy(true);
+            } else {
+                engine.actionBuy(false);
+            }
         });
+    }
+
+    @Override public void onRentPaid(Player p, Player owner, PropertySquare prop, int rent){
+        SwingUtilities.invokeLater(()->{
+            log("💸 " + p.getName() + " trả $" + rent + " tiền thuê cho " + owner.getName() + " tại " + prop.getName());
+            updateCards();
+            boardPanel.repaint();
+
+            JOptionPane pane = new JOptionPane(
+                "<html><div style='font-family:sans-serif;padding:4px;width:230px;'>"
+                + "<h4 style='color:#FF6464;margin:0 0 4px 0;'>🏠 TRẢ TIỀN THUÊ NHÀ</h4>"
+                + "<p><b>" + p.getName() + "</b> dừng tại <b>" + prop.getName() + "</b></p>"
+                + "<p>Chủ sở hữu: <b>" + owner.getName() + "</b></p>"
+                + "<p>Tiền thuê đã trả: <b style='color:#FF5050;'>-$" + rent + "</b></p>"
+                + "</div></html>",
+                JOptionPane.INFORMATION_MESSAGE
+            );
+            JDialog d = pane.createDialog(GameUI.this, "Tiền Thuê Nhà");
+            Timer t = new Timer(1800, ev -> d.dispose());
+            t.setRepeats(false);
+            t.start();
+            d.setVisible(true);
+        });
+    }
+
+    @Override public void onCardDrawn(Player p, String cardType, ProjectOop.card.Card card){
+        SwingUtilities.invokeLater(()->{
+            log("🃏 [" + cardType + "] " + card.getDescription());
+            updateCards();
+            boardPanel.repaint();
+            showCardDialog(p, cardType, card);
+        });
+    }
+
+    private void showCardDialog(Player p, String cardType, ProjectOop.card.Card card){
+        JDialog d = new JDialog(this, "Rút Thẻ " + cardType, true);
+        d.setSize(380, 230);
+        d.setLocationRelativeTo(this);
+        boolean isChance = "Cơ Hội".equals(cardType);
+        Color topC = isChance ? new Color(255, 140, 30) : new Color(0, 160, 255);
+        JPanel pan = new GradPanel(BG_DARK, BG_PANEL);
+        pan.setLayout(new BorderLayout(0, 10));
+        pan.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(topC, 2),
+            BorderFactory.createEmptyBorder(14, 18, 14, 18)
+        ));
+
+        JLabel title = lbl((isChance ? "⭐ THẺ CƠ HỘI ⭐" : "🎁 THẺ KHÍ VẬN 🎁"), 16, Font.BOLD, topC);
+        title.setHorizontalAlignment(SwingConstants.CENTER);
+
+        JLabel desc = new JLabel("<html><div style='text-align:center;font-family:sans-serif;color:#F0F5FF;padding:6px;'>"
+            + "<p style='color:#8291B4;'>Người rút: <b>" + p.getName() + "</b></p>"
+            + "<p style='font-size:13px;color:#FFD200;font-weight:bold;margin-top:6px;'>" + card.getDescription() + "</p>"
+            + "</div></html>", SwingConstants.CENTER);
+
+        JButton ok = btn("✔  ĐỒNG Ý", topC, BG_DARK);
+        ok.setFont(new Font("SansSerif", Font.BOLD, 13));
+        ok.setPreferredSize(new Dimension(140, 36));
+        ok.addActionListener(e -> d.dispose());
+        JPanel bp = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        bp.setOpaque(false);
+        bp.add(ok);
+
+        pan.add(title, BorderLayout.NORTH);
+        pan.add(desc, BorderLayout.CENTER);
+        pan.add(bp, BorderLayout.SOUTH);
+
+        d.setContentPane(pan);
+        Timer t = new Timer(3500, ev -> d.dispose());
+        t.setRepeats(false);
+        t.start();
+        d.setVisible(true);
     }
     @Override public void onJailPrompt(Player p){ SwingUtilities.invokeLater(()->{ updateHeader(p);updateCards(); log("🔒 "+p.getName()+" – ở tù lượt "+(p.getTurnsInJail()+1)+"/3"); jailPayBtn.setEnabled(true);jailCardBtn.setEnabled(p.getGetOutOfJailTicket()>0);jailRollBtn.setEnabled(true); showCard("JAIL");}); }
     @Override public void onUpgradePrompt(Player p,List<PropertySquare> list){
@@ -947,7 +1036,8 @@ public class GameUI extends JFrame implements GameEngine.GameListener {
                 }
             }
             else if(sq instanceof PropertySquare){
-                if(IMG_NHA != null){
+                PropertySquare prop = (PropertySquare) sq;
+                if(prop.getHouseLevel() > 0 && IMG_NHA != null){
                     drawScaledImage(g2, IMG_NHA, cx, cy, maxW, maxH);
                 }
             }
@@ -1259,10 +1349,13 @@ public class GameUI extends JFrame implements GameEngine.GameListener {
             for(int i=0;i<ps.length;i++){
                 if(ps[i].isBankrupt())continue;
                 int pos=(animPidx==i)?animCurPos:ps[i].getPosition();
-                Rectangle r=cellRect(pos,x0,y0,corner,cell);
-                int offX=(slot[i]%2)*15-7, offY=(slot[i]/2)*16-8;
-                int tx=r.x+r.width/2+offX-10, ty=r.y+r.height/2+offY-14;
-                drawCartoonToken(g2,i,tx,ty,22);
+                Rectangle r = cellRect(pos, x0, y0, corner, cell);
+                int tokenSize = 28;
+                int offX = (slot[i] % 2) * 16 - 8;
+                int offY = (slot[i] / 2) * 18 - 9;
+                int tx = r.x + r.width / 2 + offX - tokenSize / 2;
+                int ty = r.y + r.height / 2 + offY - tokenSize / 2;
+                drawCartoonToken(g2, i, tx, ty, tokenSize);
             }
         }
 
