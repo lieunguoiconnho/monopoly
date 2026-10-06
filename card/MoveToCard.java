@@ -19,8 +19,8 @@ public class MoveToCard extends Card {
 
     @Override
     public void apply(Player p) {
-        if (collectGoBonus && targetPosition < p.getPosition()) {
-            p.passGo(); // Vượt qua GO → nhận $200
+        if (collectGoBonus && (targetPosition < p.getPosition() || targetPosition == 0)) {
+            p.passGo(); // Vượt qua hoặc tiến đến GO → nhận $200
         }
         p.setPosition(targetPosition);
     }

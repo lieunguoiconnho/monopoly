@@ -1,5 +1,2 @@
-# Biên dịch toàn bộ:
 javac -encoding UTF-8 -d out -sourcepath . GameController.java board\Board.java card\*.java dice\Dice.java player\Player.java square\*.java ui\GameEngine.java ui\GameUI.java
-
-# Chạy giao diện game:
 java -cp out ProjectOop.ui.GameUI

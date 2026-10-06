@@ -432,7 +432,29 @@ public class GameUI extends JFrame implements GameEngine.GameListener {
     @Override public void onTurnStart(Player p,GameEngine.TurnPhase ph){ SwingUtilities.invokeLater(()->{ updateHeader(p); updateCards(); updateActions(ph); log("\n▶ Lượt: "+p.getName());}); }
     @Override public void onDiceRolled(int d1,int d2,boolean db){ SwingUtilities.invokeLater(()->{ dice1Face.setValue(d1);dice2Face.setValue(d2);dice1Face.repaint();dice2Face.repaint(); log("🎲 ["+d1+"] + ["+d2+"] = "+(d1+d2)+(db?"  ⭐ ĐÔI!":""));}); }
     @Override public void onPlayerMoved(Player p,int from,int to){ SwingUtilities.invokeLater(()->{ log("→ Ô "+from+" → "+to); boardPanel.animMove(p,from,to); updateCards();}); }
-    @Override public void onSquareEffect(Player p,String sq,String msg){ SwingUtilities.invokeLater(()->log("📍 "+msg)); }
+
+    @Override public void onPassGo(Player p, int bonus){
+        SwingUtilities.invokeLater(()->{
+            log("🚩 " + p.getName() + " hoàn thành vòng qua ô Bắt Đầu (GO) → Nhận +$" + bonus);
+            updateCards();
+            boardPanel.repaint();
+            showPassGoDialog(p, bonus);
+        });
+    }
+
+    @Override public void onSquareNotice(Player p, String title, String message, String noticeType){
+        SwingUtilities.invokeLater(()->{
+            if ("LOG".equals(noticeType)) {
+                log(message);
+                return;
+            }
+            log(title + ": " + message.replaceAll("<[^>]*>", " "));
+            updateCards();
+            boardPanel.repaint();
+            showSquareNoticeDialog(p, title, message, noticeType);
+        });
+    }
+
     @Override public void onBuyPrompt(Player p,PropertySquare prop){
         SwingUtilities.invokeLater(()->{
             log("💰 Mua \"" + prop.getName() + "\" $" + prop.getPrice() + "?");
@@ -441,12 +463,12 @@ public class GameUI extends JFrame implements GameEngine.GameListener {
 
             int res = JOptionPane.showConfirmDialog(
                 GameUI.this,
-                "<html><div style='font-family:sans-serif;padding:6px;width:240px;'>"
+                "<html><div style='font-family:sans-serif;padding:6px;width:250px;'>"
                 + "<h3 style='color:#00C3AF;margin:0 0 6px 0;'>💰 THÔNG BÁO MUA ĐẤT</h3>"
                 + "<p>Người chơi: <b>" + p.getName() + "</b></p>"
                 + "<p>Dừng tại: <b>" + prop.getName() + "</b> (Ô " + prop.getPosition() + ")</p>"
                 + "<p>Giá bán: <b style='color:#3CD078;'>$" + prop.getPrice() + "</b> | Số dư: <b>$" + p.getBalance() + "</b></p>"
-                + "<p>Bạn có muốn mua ô này không?</p></div></html>",
+                + "<p>Bạn có muốn mua bất động sản này không?</p></div></html>",
                 "Mua Đất - " + prop.getName(),
                 JOptionPane.YES_NO_OPTION,
                 JOptionPane.QUESTION_MESSAGE
@@ -465,20 +487,10 @@ public class GameUI extends JFrame implements GameEngine.GameListener {
             updateCards();
             boardPanel.repaint();
 
-            JOptionPane pane = new JOptionPane(
-                "<html><div style='font-family:sans-serif;padding:4px;width:230px;'>"
-                + "<h4 style='color:#FF6464;margin:0 0 4px 0;'>🏠 TRẢ TIỀN THUÊ NHÀ</h4>"
-                + "<p><b>" + p.getName() + "</b> dừng tại <b>" + prop.getName() + "</b></p>"
-                + "<p>Chủ sở hữu: <b>" + owner.getName() + "</b></p>"
-                + "<p>Tiền thuê đã trả: <b style='color:#FF5050;'>-$" + rent + "</b></p>"
-                + "</div></html>",
-                JOptionPane.INFORMATION_MESSAGE
-            );
-            JDialog d = pane.createDialog(GameUI.this, "Tiền Thuê Nhà");
-            Timer t = new Timer(1800, ev -> d.dispose());
-            t.setRepeats(false);
-            t.start();
-            d.setVisible(true);
+            String msg = "Bạn dừng tại <b>" + prop.getName() + "</b> thuộc sở hữu của <b>" + owner.getName() + "</b>.<br>"
+                + "Tiền thuê nhà: <b style='color:#FF5050;'>-$" + rent + "</b><br>"
+                + "Số dư còn lại: <b>$" + p.getBalance() + "</b>";
+            showSquareNoticeDialog(p, "🏠 TRẢ TIỀN THUÊ NHÀ", msg, "RENT");
         });
     }
 
@@ -489,6 +501,100 @@ public class GameUI extends JFrame implements GameEngine.GameListener {
             boardPanel.repaint();
             showCardDialog(p, cardType, card);
         });
+    }
+
+    private void showPassGoDialog(Player p, int bonus) {
+        boolean landedOnGo = (p.getPosition() == 0);
+        String dialogTitle = landedOnGo ? "Dừng Tại Ô Bắt Đầu (GO)" : "Vượt Qua Ô Bắt Đầu (GO)";
+        JDialog d = new JDialog(this, dialogTitle, true);
+        d.setSize(420, 250);
+        d.setLocationRelativeTo(this);
+        Color topC = C_GOLD;
+
+        JPanel pan = new GradPanel(BG_DARK, BG_PANEL);
+        pan.setLayout(new BorderLayout(0, 10));
+        pan.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(topC, 2),
+            BorderFactory.createEmptyBorder(14, 18, 14, 18)
+        ));
+
+        JLabel title = lbl(landedOnGo ? "🚩 DỪNG TẠI Ô BẮT ĐẦU (GO)" : "🎉 QUA Ô BẮT ĐẦU (GO)", 17, Font.BOLD, topC);
+        title.setHorizontalAlignment(SwingConstants.CENTER);
+
+        String contextMsg = landedOnGo
+            ? "Bạn đã hoàn thành 1 vòng đi và dừng chân chính xác tại <b>Ô Bắt Đầu (GO)</b>!"
+            : "Bạn đã hoàn thành 1 vòng đi và đi qua <b>Ô Bắt Đầu (GO)</b>!";
+
+        JLabel desc = new JLabel("<html><div style='text-align:center;font-family:sans-serif;color:#F0F5FF;padding:6px;'>"
+            + "<p style='color:#8291B4;'>Người chơi: <b>" + p.getName() + "</b></p>"
+            + "<p style='font-size:15px;color:#3CD078;font-weight:bold;margin:8px 0;'>+ $" + bonus + " TIỀN THƯỞNG HOÀN THÀNH VÒNG!</p>"
+            + "<p style='font-size:12px;color:#CAD5EC;line-height:1.4;'>" + contextMsg + "</p>"
+            + "<p style='font-size:13px;color:#FFD200;margin-top:6px;'>Số dư hiện tại: <b>$" + p.getBalance() + "</b></p>"
+            + "</div></html>", SwingConstants.CENTER);
+
+        JButton ok = btn("💰  NHẬN TIỀN", topC, BG_DARK);
+        ok.setFont(new Font("SansSerif", Font.BOLD, 13));
+        ok.setPreferredSize(new Dimension(140, 36));
+        ok.addActionListener(e -> d.dispose());
+        JPanel bp = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        bp.setOpaque(false);
+        bp.add(ok);
+
+        pan.add(title, BorderLayout.NORTH);
+        pan.add(desc, BorderLayout.CENTER);
+        pan.add(bp, BorderLayout.SOUTH);
+
+        d.setContentPane(pan);
+        Timer t = new Timer(3000, ev -> d.dispose());
+        t.setRepeats(false);
+        t.start();
+        d.setVisible(true);
+    }
+
+    private void showSquareNoticeDialog(Player p, String titleText, String msgHtml, String noticeType) {
+        JDialog d = new JDialog(this, "Thông Báo Hiệu Ứng", true);
+        d.setSize(420, 260);
+        d.setLocationRelativeTo(this);
+
+        Color topC;
+        if ("TAX".equals(noticeType)) topC = C_RED;
+        else if ("JAIL".equals(noticeType)) topC = new Color(245, 65, 65);
+        else if ("WARNING".equals(noticeType)) topC = new Color(255, 140, 30);
+        else if ("RENT".equals(noticeType)) topC = new Color(235, 75, 75);
+        else topC = C_TEAL;
+
+        JPanel pan = new GradPanel(BG_DARK, BG_PANEL);
+        pan.setLayout(new BorderLayout(0, 10));
+        pan.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(topC, 2),
+            BorderFactory.createEmptyBorder(14, 18, 14, 18)
+        ));
+
+        JLabel title = lbl(titleText, 16, Font.BOLD, topC);
+        title.setHorizontalAlignment(SwingConstants.CENTER);
+
+        JLabel desc = new JLabel("<html><div style='text-align:center;font-family:sans-serif;color:#F0F5FF;padding:4px;line-height:1.4;'>"
+            + "<p style='color:#8291B4;margin-bottom:6px;'>Người chơi: <b>" + p.getName() + "</b> (Ô " + p.getPosition() + ")</p>"
+            + "<div style='font-size:13px;'>" + msgHtml + "</div>"
+            + "</div></html>", SwingConstants.CENTER);
+
+        JButton ok = btn("✔  ĐÃ HIỂU", topC, BG_DARK);
+        ok.setFont(new Font("SansSerif", Font.BOLD, 13));
+        ok.setPreferredSize(new Dimension(130, 36));
+        ok.addActionListener(e -> d.dispose());
+        JPanel bp = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        bp.setOpaque(false);
+        bp.add(ok);
+
+        pan.add(title, BorderLayout.NORTH);
+        pan.add(desc, BorderLayout.CENTER);
+        pan.add(bp, BorderLayout.SOUTH);
+
+        d.setContentPane(pan);
+        Timer t = new Timer(3000, ev -> d.dispose());
+        t.setRepeats(false);
+        t.start();
+        d.setVisible(true);
     }
 
     private void showCardDialog(Player p, String cardType, ProjectOop.card.Card card){
@@ -543,8 +649,29 @@ public class GameUI extends JFrame implements GameEngine.GameListener {
             if(!list.isEmpty()){
                 PropertySquare pr=list.get(0);
                 log("🏠 "+p.getName()+" vào ô đất của mình: "+pr.getName()+" – được nâng cấp 1 lần ($"+pr.getHouseCost()+").");
+                showCard("UPGRADE");
+
+                int nextLevel = pr.getHouseLevel() + 1;
+                String nextStr = nextLevel == 5 ? "Khách sạn 🏨" : ("Cấp " + nextLevel + " 🏠");
+                int res = JOptionPane.showConfirmDialog(
+                    GameUI.this,
+                    "<html><div style='font-family:sans-serif;padding:6px;width:250px;'>"
+                    + "<h3 style='color:#508CFF;margin:0 0 6px 0;'>🏠 NÂNG CẤP NHÀ</h3>"
+                    + "<p>Người chơi: <b>" + p.getName() + "</b></p>"
+                    + "<p>Dừng tại ô của mình: <b>" + pr.getName() + "</b></p>"
+                    + "<p>Chi phí: <b style='color:#3CD078;'>$" + pr.getHouseCost() + "</b> để lên <b>" + nextStr + "</b></p>"
+                    + "<p>Số dư hiện tại: <b>$" + p.getBalance() + "</b></p>"
+                    + "<p>Bạn có muốn nâng cấp ô này ngay bây giờ không?</p></div></html>",
+                    "Nâng Cấp - " + pr.getName(),
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.QUESTION_MESSAGE
+                );
+                if (res == JOptionPane.YES_OPTION) {
+                    engine.actionUpgrade(0);
+                } else {
+                    engine.actionUpgrade(-1);
+                }
             }
-            showCard("UPGRADE");
         });
     }
     @Override public void onBankruptcy(Player bk,Player cr){ SwingUtilities.invokeLater(()->{ String m=cr!=null?"💸 "+bk.getName()+" phá sản → "+cr.getName():"💸 "+bk.getName()+" phá sản → Ngân hàng"; log(m); updateCards(); boardPanel.repaint(); JOptionPane pane=new JOptionPane(m,JOptionPane.WARNING_MESSAGE); JDialog d=pane.createDialog(this,"Phá Sản"); Timer t=new Timer(2200,ev->d.dispose());t.setRepeats(false);t.start();d.setVisible(true);}); }
@@ -606,7 +733,7 @@ public class GameUI extends JFrame implements GameEngine.GameListener {
             if(moveTimer!=null&&moveTimer.isRunning())moveTimer.stop();
             animPidx=pidx(p); animCurPos=from; animTgtPos=to;
             if(from==to){repaint();return;}
-            moveTimer=new Timer(130,null);
+            moveTimer=new Timer(90,null);
             moveTimer.addActionListener(e->{ animCurPos=(animCurPos+1)%40; repaint(); if(animCurPos==animTgtPos){moveTimer.stop();animPidx=-1;}});
             moveTimer.start();
         }

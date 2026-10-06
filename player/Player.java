@@ -43,6 +43,16 @@ public class Player {
         this.ownedProperties = new ArrayList<>();
     }
 
+    private boolean passedGoRecently = false;
+
+    public boolean checkAndResetPassedGo() {
+        if (passedGoRecently) {
+            passedGoRecently = false;
+            return true;
+        }
+        return false;
+    }
+
     //5.di chuyển
     public void move(int step)
     {
@@ -56,7 +66,8 @@ public class Player {
     public void passGo()//để riêng vì có thể sẽ có thẻ tới ô bắt đầu
     {
         balance += 200;
-        System.out.println(this.name + " đã đi hết 40 ô");
+        passedGoRecently = true;
+        System.out.println(this.name + " đã đi qua ô GO và nhận $200");
     }
     //6.tài chính
     public void addMoney(int amount)//tăng tiền

@@ -30,7 +30,8 @@ public class GameEngine {
         void onTurnStart(Player player, TurnPhase phase);
         void onDiceRolled(int d1, int d2, boolean isDouble);
         void onPlayerMoved(Player player, int from, int to);
-        void onSquareEffect(Player player, String squareName, String message);
+        void onPassGo(Player player, int bonus);
+        void onSquareNotice(Player player, String title, String message, String noticeType);
         void onBuyPrompt(Player player, PropertySquare property);
         void onJailPrompt(Player player);
         void onUpgradePrompt(Player player, List<PropertySquare> upgradeable);
@@ -238,6 +239,11 @@ public class GameEngine {
         int to = p.getPosition();
         emit(l -> l.onPlayerMoved(p, from, to));
 
+        if (p.checkAndResetPassedGo()) {
+            msg("🚩 " + p.getName() + " hoàn thành vòng đi qua ô Bắt Đầu (GO) → Nhận +$200!");
+            emit(l -> l.onPassGo(p, 200));
+        }
+
         applySquareAtCurrentPosition(p);
     }
 
@@ -246,7 +252,7 @@ public class GameEngine {
         Square sq = board.getSquare(curPos);
 
         String sqName = sq.getName();
-        emit(l -> l.onSquareEffect(p, sqName, p.getName() + " dừng tại: " + sqName));
+        emit(l -> l.onSquareNotice(p, "📍 DỪNG CHÂN: " + sqName, p.getName() + " dừng tại " + sqName, "LOG"));
         emit(l -> l.onBoardUpdated());
 
         int posBefore = p.getPosition();
@@ -254,7 +260,52 @@ public class GameEngine {
         board.updateColorGroups();
         emit(l -> l.onBoardUpdated());
 
+        // Kiểm tra nhận thưởng GO nếu hiệu ứng thẻ bài đẩy qua hoặc tới GO
+        if (p.checkAndResetPassedGo()) {
+            msg("🚩 " + p.getName() + " đi qua ô Bắt Đầu (GO) từ thẻ bài → Nhận +$200!");
+            emit(l -> l.onPassGo(p, 200));
+        }
+
         if (p.isBankrupt()) { handleBankruptcy(p); return; }
+
+        // Thông báo hiệu ứng nộp thuế nếu vào ô TaxSquare
+        if (sq instanceof TaxSquare) {
+            TaxSquare tax = (TaxSquare) sq;
+            emit(l -> l.onSquareNotice(p, "💸 NỘP THUẾ (" + tax.getName() + ")",
+                "Bạn dừng tại ô <b>" + tax.getName() + "</b>.<br>"
+                + "Hiệu ứng: Bạn phải nộp thuế <b style='color:#FF5050;'>-$" + tax.getTaxAmount() + "</b> vào ngân sách.<br>"
+                + "Số dư còn lại: <b>$" + p.getBalance() + "</b>",
+                "TAX"));
+            msg("💸 " + p.getName() + " nộp thuế $" + tax.getTaxAmount() + " tại " + tax.getName());
+        }
+
+        // Thông báo ô Tù nếu vào JailSquare
+        if (sq instanceof JailSquare) {
+            JailSquare jail = (JailSquare) sq;
+            if (jail.isGoToJail()) {
+                emit(l -> l.onSquareNotice(p, "🚨 BỊ BẮT VÀO TÙ!",
+                    "Bạn dừng tại ô <b>Vào Tù (Ô 30)</b>!<br>"
+                    + "<span style='color:#FF5050;'>Hiệu ứng: Cảnh sát bắt giam và áp giải bạn đến Nhà Tù (Ô 10)!</span><br>"
+                    + "Bạn mất quyền tự do di chuyển cho đến khi được thả tự do.",
+                    "JAIL"));
+            } else if (!p.isInJail()) {
+                emit(l -> l.onSquareNotice(p, "👀 THĂM TÙ (JUST VISITING)",
+                    "Bạn dừng chân tại ô <b>Nhà Tù (Ô 10)</b>.<br>"
+                    + "Hiệu ứng: Bạn chỉ là khách ghé thăm, không bị phạt hay giam giữ.<br>"
+                    + "Bạn tiếp tục di chuyển tự do ở lượt sau.",
+                    "INFO"));
+            }
+        }
+
+        // Thông báo các ô đặc biệt: Bãi đỗ xe miễn phí (Ô 20)
+        if (sq instanceof SpecialSquare) {
+            if (sq.getPosition() == 20) {
+                emit(l -> l.onSquareNotice(p, "🅿 BÃI ĐỖ XE MIỄN PHÍ",
+                    "Bạn dừng tại <b>Bãi Đỗ Xe Miễn Phí (Ô 20)</b>.<br>"
+                    + "Hiệu ứng: Bạn được nghỉ ngơi an toàn, không tốn bất kỳ chi phí nào.",
+                    "INFO"));
+            }
+        }
 
         // Thông báo tiền thuê nếu bước vào ô đất của người khác
         if (sq instanceof PropertySquare) {
@@ -304,8 +355,8 @@ public class GameEngine {
         Square finalSq = board.getSquare(p.getPosition());
 
         // Xử lý ô đất:
-        // 1. Nếu ô đất trống → Quyết định mua đất
-        // 2. Nếu đã là chủ sở hữu ô đó → Quyết định nâng cấp nếu đủ điều kiện
+        // 1. Nếu ô đất trống → Quyết định mua đất (hoặc thông báo không đủ tiền)
+        // 2. Nếu đã là chủ sở hữu ô đó → Quyết định nâng cấp (hoặc thông báo lý do không thể nâng cấp)
         if (finalSq instanceof PropertySquare) {
             PropertySquare prop = (PropertySquare) finalSq;
             if (prop.getOwner() == null) {
@@ -315,6 +366,11 @@ public class GameEngine {
                     return;
                 } else {
                     msg("💸 " + p.getName() + " không đủ $" + prop.getPrice() + " để mua " + prop.getName() + " (Số dư: $" + p.getBalance() + ").");
+                    emit(l -> l.onSquareNotice(p, "💰 ĐẤT CHƯA CÓ CHỦ",
+                        "Bạn dừng tại: <b>" + prop.getName() + "</b> (Giá bán: $" + prop.getPrice() + ").<br>"
+                        + "Số dư của bạn: <b>$" + p.getBalance() + "</b>.<br>"
+                        + "<span style='color:#FF6464;'>Hiệu ứng: Bạn không đủ tiền để mua bất động sản này!</span>",
+                        "WARNING"));
                 }
             } else if (prop.getOwner() == p) {
                 if (prop.canUpgrade(p)) {
@@ -324,13 +380,27 @@ public class GameEngine {
                     emit(l -> l.onUpgradePrompt(p, list));
                     return;
                 } else if (prop.getHouseCost() > 0) {
+                    String reason;
                     if (prop.getHouseLevel() >= 5) {
-                        msg("🏨 " + prop.getName() + " đã đạt cấp tối đa (Khách sạn).");
+                        reason = "Bất động sản này đã đạt cấp tối đa (Khách sạn 🏨).";
                     } else if (!prop.isColorGroupComplete()) {
-                        msg("ℹ " + p.getName() + " cần sở hữu trọn bộ màu " + (prop.getColorGroup() != null ? prop.getColorGroup().name() : "") + " để xây nhà trên " + prop.getName());
+                        reason = "Bạn cần sở hữu trọn bộ màu " + (prop.getColorGroup() != null ? prop.getColorGroup().name() : "") + " để có thể xây nhà.";
                     } else if (p.getBalance() < prop.getHouseCost()) {
-                        msg("💸 " + p.getName() + " không đủ $" + prop.getHouseCost() + " để nâng cấp " + prop.getName());
+                        reason = "Phí xây nhà là $" + prop.getHouseCost() + ", nhưng bạn chỉ có $" + p.getBalance() + " (không đủ tiền).";
+                    } else {
+                        reason = "Chưa đủ điều kiện nâng cấp lúc này.";
                     }
+                    msg("ℹ " + prop.getName() + ": " + reason);
+                    emit(l -> l.onSquareNotice(p, "🏠 BẤT ĐỘNG SẢN CỦA BẠN",
+                        "Bạn dừng chân tại ô của chính mình: <b>" + prop.getName() + "</b>.<br>"
+                        + "Hiệu ứng: Bạn được nghỉ ngơi miễn phí, không phải trả tiền thuê.<br>"
+                        + "<span style='color:#FFC850;'>ℹ " + reason + "</span>",
+                        "INFO"));
+                } else {
+                    emit(l -> l.onSquareNotice(p, "🏠 BẤT ĐỘNG SẢN CỦA BẠN",
+                        "Bạn dừng chân tại ô của chính mình: <b>" + prop.getName() + "</b>.<br>"
+                        + "Hiệu ứng: Bạn được nghỉ ngơi miễn phí, không phải trả tiền thuê.",
+                        "INFO"));
                 }
             }
         }
