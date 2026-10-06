@@ -9,6 +9,9 @@ import javax.swing.border.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.*;
+import java.awt.image.BufferedImage;
+import javax.imageio.ImageIO;
+import java.io.File;
 import java.util.List;
 import java.util.ArrayList;
 
@@ -70,6 +73,67 @@ public class GameUI extends JFrame implements GameEngine.GameListener {
         if (c == null) return Color.WHITE;
         double lum = 0.299 * c.getRed() + 0.587 * c.getGreen() + 0.114 * c.getBlue();
         return lum > 165 ? new Color(20, 25, 35) : Color.WHITE;
+    }
+
+    // ── Asset Images từ asset.png ─────────────────────────────────
+    private static BufferedImage IMG_BAT_DAU;
+    private static BufferedImage IMG_BAI_DO_XE;
+    private static BufferedImage IMG_VAO_TU;
+    private static BufferedImage IMG_CO_HOI;
+    private static BufferedImage IMG_THUE;
+    private static BufferedImage IMG_NHA;
+
+    static {
+        IMG_BAT_DAU   = loadAsset("bat_dau.png");
+        IMG_BAI_DO_XE = loadAsset("bai_do_xe.png");
+        IMG_VAO_TU    = loadAsset("vao_tu.png");
+        IMG_CO_HOI    = loadAsset("co_hoi.png");
+        IMG_THUE      = loadAsset("thue.png");
+        IMG_NHA       = loadAsset("nha.png");
+    }
+
+    private static BufferedImage loadAsset(String filename) {
+        String[] possiblePaths = {
+            "assets/" + filename,
+            "assets\\" + filename,
+            "../assets/" + filename,
+            "ProjectOop/assets/" + filename,
+            "ProjectOop/ProjectOop/assets/" + filename
+        };
+        for (String p : possiblePaths) {
+            File f = new File(p);
+            if (f.exists() && f.isFile()) {
+                try {
+                    return ImageIO.read(f);
+                } catch (Exception ignored) {}
+            }
+        }
+        try {
+            java.net.URL url = GameUI.class.getResource("/assets/" + filename);
+            if (url == null) url = GameUI.class.getClassLoader().getResource("assets/" + filename);
+            if (url == null) url = GameUI.class.getResource(filename);
+            if (url != null) return ImageIO.read(url);
+        } catch (Exception ignored) {}
+        System.err.println("Warning: Could not load asset: " + filename);
+        return null;
+    }
+
+    private static void drawScaledImage(Graphics2D g2, BufferedImage img, int cx, int cy, int maxW, int maxH) {
+        if (img == null) return;
+        int iw = img.getWidth();
+        int ih = img.getHeight();
+        double scale = Math.min((double) maxW / iw, (double) maxH / ih);
+        int dw = (int) Math.round(iw * scale);
+        int dh = (int) Math.round(ih * scale);
+        int x = cx - dw / 2;
+        int y = cy - dh / 2;
+
+        Object oldHint = g2.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g2.drawImage(img, x, y, dw, dh, null);
+        if (oldHint != null) {
+            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, oldHint);
+        }
     }
 
 
@@ -596,11 +660,15 @@ public class GameUI extends JFrame implements GameEngine.GameListener {
         private void drawCellContent(Graphics2D g2,Square sq,Rectangle r,int dir){
             if(dir==-1){ drawCorner(g2,sq,r); return; }
 
-            AffineTransform old=g2.getTransform();
             int cx=r.x+r.width/2, cy=r.y+r.height/2;
+            if(dir==2){
+                drawTopCellContent(g2,sq,r,cx,cy);
+                return;
+            }
+
+            AffineTransform old=g2.getTransform();
             if(dir==1) g2.rotate(-Math.PI/2,cx,cy);
             else if(dir==3) g2.rotate(Math.PI/2,cx,cy);
-            else if(dir==2) g2.rotate(Math.PI,cx,cy);
             // After rotation treat as dir==0 (bottom): width=visual-width, height=visual-height
 
             int vw=(dir==0||dir==2)?r.width:r.height;
@@ -614,9 +682,9 @@ public class GameUI extends JFrame implements GameEngine.GameListener {
             g2.drawString(pos,cx-vw/2+2,cy-vh/2+fm.getAscent()+1);
 
             // Square-type icon in middle area
-            int iconY=cy-2;
-            int iconR=Math.max(9,Math.min(15,vw/5));
-            drawSquareIcon(g2,sq,cx,iconY,iconR);
+            int iconY=cy-4;
+            int iconR=Math.max(9,Math.min(14,vw/5));
+            drawSquareIcon(g2,sq,cx,iconY,iconR,vw,vh);
 
             // Name text below icon
             String name=shortName(sq.getName());
@@ -634,19 +702,26 @@ public class GameUI extends JFrame implements GameEngine.GameListener {
             }
             if(lb.length()>0) lines.add(lb.toString().trim());
             int lh=fm.getHeight();
-            int ty=cy+iconR+4;
+            int ty=cy+iconR+3;
             for(int i=0;i<Math.min(lines.size(),2);i++){
                 String ln=lines.get(i);
                 g2.drawString(ln,cx-fm.stringWidth(ln)/2,ty+i*lh);
             }
 
-            // Price for property
+            // Price for property / Tax for tax square
             if(sq instanceof PropertySquare){
                 PropertySquare prop=(PropertySquare)sq;
                 g2.setFont(new Font("SansSerif",Font.BOLD,Math.max(7,fs)));
                 fm=g2.getFontMetrics();
                 g2.setColor(C_TEAL);
                 String pr="$"+prop.getPrice();
+                g2.drawString(pr,cx-fm.stringWidth(pr)/2,cy+vh/2-3);
+            } else if(sq instanceof TaxSquare){
+                TaxSquare tx=(TaxSquare)sq;
+                g2.setFont(new Font("SansSerif",Font.BOLD,Math.max(7,fs)));
+                fm=g2.getFontMetrics();
+                g2.setColor(new Color(255,100,100));
+                String pr="-$"+tx.getTaxAmount();
                 g2.drawString(pr,cx-fm.stringWidth(pr)/2,cy+vh/2-3);
             }
 
@@ -691,6 +766,95 @@ public class GameUI extends JFrame implements GameEngine.GameListener {
             g2.setTransform(old);
         }
 
+        private void drawTopCellContent(Graphics2D g2,Square sq,Rectangle r,int cx,int cy){
+            int sw=Math.max(8,Math.min(12,Math.max(r.width,r.height)/7));
+
+            // Position number top-left
+            g2.setFont(new Font("SansSerif",Font.BOLD,8));
+            FontMetrics fm=g2.getFontMetrics();
+            g2.setColor(C_GOLD);
+            String pos=String.valueOf(sq.getPosition());
+            g2.drawString(pos,r.x+2,r.y+fm.getAscent()+1);
+
+            PropertySquare prop=(sq instanceof PropertySquare)?(PropertySquare)sq:null;
+            Color ownerCol=null;
+            int pi=-1;
+            if(prop!=null && prop.getOwner()!=null){
+                pi=pidx(prop.getOwner());
+                ownerCol=pi>=0&&pi<P_COL.length?P_COL[pi]:C_GREEN;
+
+                // 1. Owner Badge top-right
+                int bw2=20, bh2=12;
+                int bx2=r.x+r.width-bw2-2, by2c=r.y+2;
+                g2.setColor(new Color(0,0,0,110));
+                g2.fillRoundRect(bx2+1,by2c+1,bw2,bh2,5,5);
+                g2.setColor(ownerCol);
+                g2.fillRoundRect(bx2,by2c,bw2,bh2,5,5);
+                g2.setColor(new Color(255,255,255,140));
+                g2.setStroke(new BasicStroke(0.8f));
+                g2.drawRoundRect(bx2,by2c,bw2,bh2,5,5);
+                g2.setColor(getContrastColor(ownerCol));
+                g2.setFont(new Font("SansSerif",Font.BOLD,8));
+                FontMetrics fmb=g2.getFontMetrics();
+                String ini=pi>=0&&pi<P_INITIALS.length?P_INITIALS[pi]:("P"+(pi+1));
+                g2.drawString(ini,bx2+(bw2-fmb.stringWidth(ini))/2,by2c+fmb.getAscent()+1);
+
+                // 2. Owner stripe above group color bar
+                g2.setColor(ownerCol);
+                g2.fillRect(r.x+2,r.y+r.height-sw-2,r.width-4,2);
+
+                // 3. Houses / Flag
+                int houseBaseY=r.y+20;
+                if(prop.getHouseLevel()>0){
+                    drawHouses(g2,prop.getHouseLevel(),cx,houseBaseY,r.width,ownerCol);
+                }else{
+                    drawOwnerFlag(g2,cx,houseBaseY,ownerCol);
+                }
+            }
+
+            // Icon
+            int iconY = r.y + (prop!=null && prop.getOwner()!=null ? 36 : 28);
+            int iconR = Math.max(9, Math.min(14, r.width/5));
+            drawSquareIcon(g2, sq, cx, iconY, iconR, r.width, r.height);
+
+            // Name text below icon
+            String name=shortName(sq.getName());
+            int fs=Math.max(7,Math.min(9,r.width/7));
+            g2.setFont(new Font("SansSerif",Font.PLAIN,fs));
+            fm=g2.getFontMetrics();
+            g2.setColor(TEXT_HI);
+            String[]words=name.split(" ");
+            List<String>lines=new ArrayList<>();
+            StringBuilder lb=new StringBuilder();
+            for(String w:words){
+                if(lb.length()+w.length()>10&&lb.length()>0){lines.add(lb.toString().trim());lb=new StringBuilder();}
+                lb.append(w).append(" ");
+            }
+            if(lb.length()>0) lines.add(lb.toString().trim());
+            int lh=fm.getHeight();
+            int ty=iconY+iconR+3;
+            for(int i=0;i<Math.min(lines.size(),2);i++){
+                String ln=lines.get(i);
+                g2.drawString(ln,cx-fm.stringWidth(ln)/2,ty+i*lh);
+            }
+
+            // Price / Tax amount
+            if(prop!=null){
+                g2.setFont(new Font("SansSerif",Font.BOLD,Math.max(7,fs)));
+                fm=g2.getFontMetrics();
+                g2.setColor(C_TEAL);
+                String pr="$"+prop.getPrice();
+                g2.drawString(pr,cx-fm.stringWidth(pr)/2,r.y+r.height-sw-4);
+            } else if(sq instanceof TaxSquare){
+                TaxSquare tx=(TaxSquare)sq;
+                g2.setFont(new Font("SansSerif",Font.BOLD,Math.max(7,fs)));
+                fm=g2.getFontMetrics();
+                g2.setColor(new Color(255,100,100));
+                String pr="-$"+tx.getTaxAmount();
+                g2.drawString(pr,cx-fm.stringWidth(pr)/2,r.y+r.height-sw-4);
+            }
+        }
+
         private void drawCorner(Graphics2D g2,Square sq,Rectangle r){
             int cx=r.x+r.width/2, cy=r.y+r.height/2;
             int pos=sq.getPosition();
@@ -702,41 +866,91 @@ public class GameUI extends JFrame implements GameEngine.GameListener {
             String ps=String.valueOf(pos);
             g2.drawString(ps,r.x+3,r.y+fm.getAscent()+2);
 
-            int iconR=Math.max(16,r.width/4);
+            int maxW = (int)(r.width * 0.72);
+            int maxH = (int)(r.height * 0.52);
+            int iconCy = cy - 6;
 
             if(pos==0){
-                // GO – arrow
-                drawGoIcon(g2,cx,cy,iconR);
-                g2.setFont(new Font("SansSerif",Font.BOLD,Math.max(12,r.width/6)));
-                fm=g2.getFontMetrics(); g2.setColor(C_GREEN);
-                g2.drawString("GO",cx-fm.stringWidth("GO")/2,cy+iconR+fm.getAscent()+2);
+                if(IMG_BAT_DAU != null){
+                    drawScaledImage(g2, IMG_BAT_DAU, cx, iconCy, maxW, maxH);
+                } else {
+                    drawGoIcon(g2, cx, iconCy, Math.max(16, r.width/4));
+                }
+                g2.setFont(new Font("SansSerif", Font.BOLD, Math.max(10, r.width/7)));
+                fm = g2.getFontMetrics();
+                g2.setColor(C_GREEN);
+                g2.drawString("BẮT ĐẦU", cx - fm.stringWidth("BẮT ĐẦU")/2, r.y + r.height - 6);
             } else if(pos==10){
-                drawJailIcon(g2,cx,cy,iconR);
-                g2.setFont(new Font("SansSerif",Font.BOLD,9));
-                fm=g2.getFontMetrics(); g2.setColor(TEXT_HI);
-                g2.drawString("TÙ",cx-fm.stringWidth("TÙ")/2,cy+iconR+fm.getAscent()+2);
+                if(IMG_VAO_TU != null){
+                    drawScaledImage(g2, IMG_VAO_TU, cx, iconCy, maxW, maxH);
+                } else {
+                    drawJailIcon(g2, cx, iconCy, Math.max(16, r.width/4));
+                }
+                g2.setFont(new Font("SansSerif", Font.BOLD, Math.max(9, r.width/8)));
+                fm = g2.getFontMetrics();
+                g2.setColor(new Color(225, 230, 255));
+                g2.drawString("THĂM TÙ", cx - fm.stringWidth("THĂM TÙ")/2, r.y + r.height - 6);
             } else if(pos==20){
-                drawParkingIcon(g2,cx,cy,iconR);
-                g2.setFont(new Font("SansSerif",Font.BOLD,9));
-                fm=g2.getFontMetrics(); g2.setColor(C_BLUE);
-                g2.drawString("BÃI ĐỖ",cx-fm.stringWidth("BÃI ĐỖ")/2,cy+iconR+fm.getAscent()+2);
+                if(IMG_BAI_DO_XE != null){
+                    drawScaledImage(g2, IMG_BAI_DO_XE, cx, iconCy, maxW, maxH);
+                } else {
+                    drawParkingIcon(g2, cx, iconCy, Math.max(16, r.width/4));
+                }
+                g2.setFont(new Font("SansSerif", Font.BOLD, Math.max(9, r.width/8)));
+                fm = g2.getFontMetrics();
+                g2.setColor(new Color(90, 175, 255));
+                g2.drawString("BÃI ĐỖ XE", cx - fm.stringWidth("BÃI ĐỖ XE")/2, r.y + r.height - 6);
             } else if(pos==30){
-                drawGoJailIcon(g2,cx,cy,iconR);
-                g2.setFont(new Font("SansSerif",Font.BOLD,8));
-                fm=g2.getFontMetrics(); g2.setColor(C_RED);
-                g2.drawString("VÀO TÙ",cx-fm.stringWidth("VÀO TÙ")/2,cy+iconR+fm.getAscent()+2);
+                if(IMG_VAO_TU != null){
+                    drawScaledImage(g2, IMG_VAO_TU, cx, iconCy, maxW, maxH);
+                } else {
+                    drawGoJailIcon(g2, cx, iconCy, Math.max(16, r.width/4));
+                }
+                g2.setFont(new Font("SansSerif", Font.BOLD, Math.max(9, r.width/8)));
+                fm = g2.getFontMetrics();
+                g2.setColor(new Color(255, 80, 80));
+                g2.drawString("VÀO TÙ", cx - fm.stringWidth("VÀO TÙ")/2, r.y + r.height - 6);
             }
         }
 
         // ── Square-type icons ────────────────────────────────────
 
-        private void drawSquareIcon(Graphics2D g2,Square sq,int cx,int cy,int r){
-            if(sq instanceof RailroadSquare){ drawTrainIcon(g2,cx,cy,r); }
-            else if(sq instanceof UtilitySquare){ drawUtilityIcon(g2,(UtilitySquare)sq,cx,cy,r); }
-            else if(sq instanceof ChanceSquare){ drawStarIcon(g2,cx,cy,r,C_GOLD,5); }
-            else if(sq instanceof CommunityChestSquare){ drawChestIcon(g2,cx,cy,r); }
-            else if(sq instanceof TaxSquare){ drawTaxIcon(g2,cx,cy,r); }
-            else if(sq instanceof PropertySquare){ /* icon handled separately */ }
+        private void drawSquareIcon(Graphics2D g2,Square sq,int cx,int cy,int r,int vw,int vh){
+            int maxW = Math.min(36, vw - 12);
+            int maxH = Math.min(28, (int)(vh * 0.32));
+
+            if(sq instanceof RailroadSquare){
+                drawTrainIcon(g2,cx,cy,r);
+            }
+            else if(sq instanceof UtilitySquare){
+                drawUtilityIcon(g2,(UtilitySquare)sq,cx,cy,r);
+            }
+            else if(sq instanceof ChanceSquare){
+                if(IMG_CO_HOI != null){
+                    drawScaledImage(g2, IMG_CO_HOI, cx, cy, maxW, maxH);
+                } else {
+                    drawStarIcon(g2, cx, cy, r, C_GOLD, 5);
+                }
+            }
+            else if(sq instanceof CommunityChestSquare){
+                if(IMG_CO_HOI != null){
+                    drawScaledImage(g2, IMG_CO_HOI, cx, cy, maxW, maxH);
+                } else {
+                    drawChestIcon(g2, cx, cy, r);
+                }
+            }
+            else if(sq instanceof TaxSquare){
+                if(IMG_THUE != null){
+                    drawScaledImage(g2, IMG_THUE, cx, cy, maxW, maxH);
+                } else {
+                    drawTaxIcon(g2, cx, cy, r);
+                }
+            }
+            else if(sq instanceof PropertySquare){
+                if(IMG_NHA != null){
+                    drawScaledImage(g2, IMG_NHA, cx, cy, maxW, maxH);
+                }
+            }
         }
 
         // 5-pointed star
