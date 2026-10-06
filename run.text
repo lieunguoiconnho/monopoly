@@ -1,0 +1,5 @@
+cd "d:\Code\Github\OOP Project\ProjectOop\ProjectOop"
+# Compile:
+javac -encoding UTF-8 -d out -sourcepath . GameController.java board\Board.java card\*.java dice\Dice.java player\Player.java square\*.java ui\GameEngine.java ui\GameUI.java
+# Chạy giao diện GUI:
+java -cp out ProjectOop.ui.GameUI
