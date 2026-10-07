@@ -101,7 +101,7 @@ public class GameEngine {
         if (lastIsDouble) {
             consecutiveDoubles++;
             if (consecutiveDoubles >= 3) {
-                msg("Đổ đôi 3 lần liên tiếp! " + getCurrentPlayer().getName() + " bị vào tù!");
+                msg(getCurrentPlayer().getName() + " đổ đôi 3 lần liên tiếp -> Bị bắt vào tù!");
                 sendToJail(getCurrentPlayer());
                 endTurnAndNext();
                 return;
@@ -121,11 +121,11 @@ public class GameEngine {
                 p.setInJail(false);
                 p.setTurnsInJail(0);
                 freedFromJailThisTurn = true;
-                msg(p.getName() + " nộp $" + JailSquare.BAIL_AMOUNT + " → ra tù!");
+                msg(p.getName() + " nộp $" + JailSquare.BAIL_AMOUNT + " bảo lãnh -> Ra tù.");
                 phase = TurnPhase.WAITING_ROLL;
                 emit(l -> l.onTurnStart(p, phase));
             } else {
-                msg("Không đủ tiền bảo lãnh! Thử đổ đôi...");
+                msg(p.getName() + " không đủ tiền bảo lãnh -> Thử đổ đôi...");
                 actionJail(3);
             }
         } else if (choice == 2) { // Dùng thẻ ra tù
@@ -133,11 +133,11 @@ public class GameEngine {
                 p.setInJail(false);
                 p.setTurnsInJail(0);
                 freedFromJailThisTurn = true;
-                msg(p.getName() + " dùng thẻ Ra Tù Miễn Phí!");
+                msg(p.getName() + " sử dụng thẻ Ra Tù Miễn Phí -> Ra tù.");
                 phase = TurnPhase.WAITING_ROLL;
                 emit(l -> l.onTurnStart(p, phase));
             } else {
-                msg("Không có thẻ! Thử đổ đôi...");
+                msg(p.getName() + " không có thẻ ra tù -> Thử đổ đôi...");
                 actionJail(3);
             }
         } else { // Thử đổ đôi
@@ -153,10 +153,10 @@ public class GameEngine {
                 p.setInJail(false);
                 p.setTurnsInJail(0);
                 freedFromJailThisTurn = true;
-                msg("Ra tù bằng đôi! Đi " + total + " bước.");
+                msg(p.getName() + " ra tù bằng đổ đôi -> Đi " + total + " bước.");
                 moveAndApply(p, total);
             } else if (p.getTurnsInJail() >= 3) {
-                msg("Hết 3 lượt! Bắt buộc nộp $" + JailSquare.BAIL_AMOUNT + ".");
+                msg(p.getName() + " hết 3 lượt ở tù -> Bắt buộc nộp $" + JailSquare.BAIL_AMOUNT + " bảo lãnh.");
                 if (!p.deductMoney(JailSquare.BAIL_AMOUNT)) {
                     p.setCreditor(null);
                     p.setBankrupt(true);
@@ -168,7 +168,7 @@ public class GameEngine {
                 freedFromJailThisTurn = true;
                 moveAndApply(p, total);
             } else {
-                msg("Không ra đôi. Còn " + (3 - p.getTurnsInJail()) + " lượt thử.");
+                msg(p.getName() + " không ra đôi -> Còn " + (3 - p.getTurnsInJail()) + " lượt thử.");
                 endTurnAndNext();
             }
         }
@@ -184,7 +184,7 @@ public class GameEngine {
             PropertySquare prop = (PropertySquare) sq;
             if (prop.buyProperty(p)) {
                 board.updateColorGroups();
-                msg("✅ " + p.getName() + " mua " + prop.getName() + " ($" + prop.getPrice() + ") [Đất trống - Cấp 0]");
+                msg(p.getName() + " mua " + prop.getName() + " ($" + prop.getPrice() + ")");
                 emit(l -> l.onBoardUpdated());
             }
         } else if (!doBuy && sq instanceof PropertySquare) {
@@ -203,8 +203,8 @@ public class GameEngine {
             PropertySquare prop = (PropertySquare) sq;
             if (prop.getOwner() == p && prop.canUpgrade(p)) {
                 if (prop.upgrade(p)) {
-                    String lvl = prop.getHouseLevel() == 5 ? "🏨 Khách sạn" : "🏠 Cấp " + prop.getHouseLevel();
-                    msg("✅ " + p.getName() + " nâng cấp " + prop.getName() + " → " + lvl);
+                    String lvl = prop.getHouseLevel() == 5 ? "Khách sạn" : "Cấp " + prop.getHouseLevel();
+                    msg(p.getName() + " nâng cấp " + prop.getName() + " -> " + lvl + " (-$" + prop.getHouseCost() + ")");
                     emit(l -> l.onBoardUpdated());
                 }
             }
@@ -240,7 +240,6 @@ public class GameEngine {
         emit(l -> l.onPlayerMoved(p, from, to));
 
         if (p.checkAndResetPassedGo()) {
-            msg("🚩 " + p.getName() + " hoàn thành vòng đi qua ô Bắt Đầu (GO) → Nhận +$200!");
             emit(l -> l.onPassGo(p, 200));
         }
 
@@ -252,7 +251,6 @@ public class GameEngine {
         Square sq = board.getSquare(curPos);
 
         String sqName = sq.getName();
-        emit(l -> l.onSquareNotice(p, "📍 DỪNG CHÂN: " + sqName, p.getName() + " dừng tại " + sqName, "LOG"));
         emit(l -> l.onBoardUpdated());
 
         int posBefore = p.getPosition();
@@ -262,7 +260,6 @@ public class GameEngine {
 
         // Kiểm tra nhận thưởng GO nếu hiệu ứng thẻ bài đẩy qua hoặc tới GO
         if (p.checkAndResetPassedGo()) {
-            msg("🚩 " + p.getName() + " đi qua ô Bắt Đầu (GO) từ thẻ bài → Nhận +$200!");
             emit(l -> l.onPassGo(p, 200));
         }
 
@@ -271,25 +268,24 @@ public class GameEngine {
         // Thông báo hiệu ứng nộp thuế nếu vào ô TaxSquare
         if (sq instanceof TaxSquare) {
             TaxSquare tax = (TaxSquare) sq;
-            emit(l -> l.onSquareNotice(p, "💸 NỘP THUẾ (" + tax.getName() + ")",
+            emit(l -> l.onSquareNotice(p, "NỘP THUẾ",
                 "Bạn dừng tại ô <b>" + tax.getName() + "</b>.<br>"
                 + "Hiệu ứng: Bạn phải nộp thuế <b style='color:#FF5050;'>-$" + tax.getTaxAmount() + "</b> vào ngân sách.<br>"
                 + "Số dư còn lại: <b>$" + p.getBalance() + "</b>",
                 "TAX"));
-            msg("💸 " + p.getName() + " nộp thuế $" + tax.getTaxAmount() + " tại " + tax.getName());
         }
 
         // Thông báo ô Tù nếu vào JailSquare
         if (sq instanceof JailSquare) {
             JailSquare jail = (JailSquare) sq;
             if (jail.isGoToJail()) {
-                emit(l -> l.onSquareNotice(p, "🚨 BỊ BẮT VÀO TÙ!",
+                emit(l -> l.onSquareNotice(p, "BỊ BẮT VÀO TÙ",
                     "Bạn dừng tại ô <b>Vào Tù (Ô 30)</b>!<br>"
                     + "<span style='color:#FF5050;'>Hiệu ứng: Cảnh sát bắt giam và áp giải bạn đến Nhà Tù (Ô 10)!</span><br>"
                     + "Bạn mất quyền tự do di chuyển cho đến khi được thả tự do.",
                     "JAIL"));
             } else if (!p.isInJail()) {
-                emit(l -> l.onSquareNotice(p, "👀 THĂM TÙ (JUST VISITING)",
+                emit(l -> l.onSquareNotice(p, "THĂM TÙ",
                     "Bạn dừng chân tại ô <b>Nhà Tù (Ô 10)</b>.<br>"
                     + "Hiệu ứng: Bạn chỉ là khách ghé thăm, không bị phạt hay giam giữ.<br>"
                     + "Bạn tiếp tục di chuyển tự do ở lượt sau.",
@@ -300,7 +296,7 @@ public class GameEngine {
         // Thông báo các ô đặc biệt: Bãi đỗ xe miễn phí (Ô 20)
         if (sq instanceof SpecialSquare) {
             if (sq.getPosition() == 20) {
-                emit(l -> l.onSquareNotice(p, "🅿 BÃI ĐỖ XE MIỄN PHÍ",
+                emit(l -> l.onSquareNotice(p, "BÃI ĐỖ XE MIỄN PHÍ",
                     "Bạn dừng tại <b>Bãi Đỗ Xe Miễn Phí (Ô 20)</b>.<br>"
                     + "Hiệu ứng: Bạn được nghỉ ngơi an toàn, không tốn bất kỳ chi phí nào.",
                     "INFO"));
@@ -315,7 +311,6 @@ public class GameEngine {
                         ? ((UtilitySquare) prop).getRent(p.getLastDiceRoll())
                         : prop.getRent();
                 emit(l -> l.onRentPaid(p, prop.getOwner(), prop, rent));
-                msg("🏠 " + p.getName() + " vào ô của " + prop.getOwner().getName() + " (" + prop.getName() + ") → Trả tiền thuê: $" + rent);
             }
         }
 
@@ -323,13 +318,11 @@ public class GameEngine {
         if (sq instanceof ChanceSquare) {
             ProjectOop.card.Card c = ((ChanceSquare) sq).getLastDrawnCard();
             if (c != null) {
-                msg("⭐ [Cơ Hội]: " + c.getDescription());
                 emit(l -> l.onCardDrawn(p, "Cơ Hội", c));
             }
         } else if (sq instanceof CommunityChestSquare) {
             ProjectOop.card.Card c = ((CommunityChestSquare) sq).getLastDrawnCard();
             if (c != null) {
-                msg("🎁 [Khí Vận]: " + c.getDescription());
                 emit(l -> l.onCardDrawn(p, "Khí Vận", c));
             }
         }
@@ -341,7 +334,7 @@ public class GameEngine {
             emit(l -> l.onBoardUpdated());
 
             if (p.isInJail()) {
-                msg("🔒 " + p.getName() + " bị vào tù!");
+                msg(p.getName() + " bị đưa vào tù!");
                 finishRollPhase();
                 return;
             }
@@ -365,8 +358,8 @@ public class GameEngine {
                     emit(l -> l.onBuyPrompt(p, prop));
                     return;
                 } else {
-                    msg("💸 " + p.getName() + " không đủ $" + prop.getPrice() + " để mua " + prop.getName() + " (Số dư: $" + p.getBalance() + ").");
-                    emit(l -> l.onSquareNotice(p, "💰 ĐẤT CHƯA CÓ CHỦ",
+                    msg(p.getName() + " không đủ tiền mua " + prop.getName() + " (Giá: $" + prop.getPrice() + ")");
+                    emit(l -> l.onSquareNotice(p, "ĐẤT CHƯA CÓ CHỦ",
                         "Bạn dừng tại: <b>" + prop.getName() + "</b> (Giá bán: $" + prop.getPrice() + ").<br>"
                         + "Số dư của bạn: <b>$" + p.getBalance() + "</b>.<br>"
                         + "<span style='color:#FF6464;'>Hiệu ứng: Bạn không đủ tiền để mua bất động sản này!</span>",
@@ -382,7 +375,7 @@ public class GameEngine {
                 } else if (prop.getHouseCost() > 0) {
                     String reason;
                     if (prop.getHouseLevel() >= 5) {
-                        reason = "Bất động sản này đã đạt cấp tối đa (Khách sạn 🏨).";
+                        reason = "Bất động sản này đã đạt cấp tối đa (Khách sạn).";
                     } else if (!prop.isColorGroupComplete()) {
                         reason = "Bạn cần sở hữu trọn bộ màu " + (prop.getColorGroup() != null ? prop.getColorGroup().name() : "") + " để có thể xây nhà.";
                     } else if (p.getBalance() < prop.getHouseCost()) {
@@ -390,14 +383,13 @@ public class GameEngine {
                     } else {
                         reason = "Chưa đủ điều kiện nâng cấp lúc này.";
                     }
-                    msg("ℹ " + prop.getName() + ": " + reason);
-                    emit(l -> l.onSquareNotice(p, "🏠 BẤT ĐỘNG SẢN CỦA BẠN",
+                    emit(l -> l.onSquareNotice(p, "BẤT ĐỘNG SẢN CỦA BẠN",
                         "Bạn dừng chân tại ô của chính mình: <b>" + prop.getName() + "</b>.<br>"
                         + "Hiệu ứng: Bạn được nghỉ ngơi miễn phí, không phải trả tiền thuê.<br>"
-                        + "<span style='color:#FFC850;'>ℹ " + reason + "</span>",
+                        + "<span style='color:#FFC850;'>" + reason + "</span>",
                         "INFO"));
                 } else {
-                    emit(l -> l.onSquareNotice(p, "🏠 BẤT ĐỘNG SẢN CỦA BẠN",
+                    emit(l -> l.onSquareNotice(p, "BẤT ĐỘNG SẢN CỦA BẠN",
                         "Bạn dừng chân tại ô của chính mình: <b>" + prop.getName() + "</b>.<br>"
                         + "Hiệu ứng: Bạn được nghỉ ngơi miễn phí, không phải trả tiền thuê.",
                         "INFO"));
@@ -411,7 +403,7 @@ public class GameEngine {
         Player p = getCurrentPlayer();
         // Đổ đôi → đi thêm lượt (trừ khi vừa thoát tù hoặc đang ở tù)
         if (lastIsDouble && !freedFromJailThisTurn && !p.isInJail()) {
-            msg("⭐ Đổ đôi! " + p.getName() + " được đi thêm lượt.");
+            msg(p.getName() + " đổ đôi, được đi thêm lượt!");
             phase = TurnPhase.WAITING_ROLL;
             emit(l -> l.onTurnStart(p, phase));
         } else {
