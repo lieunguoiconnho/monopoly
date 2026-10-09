@@ -3,15 +3,15 @@ package ProjectOop.square;
 import ProjectOop.player.*;
 
 public class PropertySquare extends Square {
-    private static final int[] RENT_MULTIPLIERS = {1, 5, 15, 36, 44, 52}; // bảng giá nhân giá theo cấp (nên cân bằng lại)
+    private static final int[] RENT_MULTIPLIERS = {0, 1, 5, 15, 52}; // 1: Đất nền, 2: Nhà phố, 3: Chung cư, 4: Khách sạn
 
     private int price;      // Giá mua ô đất
     private int baseRent;   // Tiền thuê gốc (chưa xây nhà)
-    private int houseLevel; // 0: đất trống, 1-4: số nhà, 5: khách sạn
+    private int houseLevel; // 0: chưa có chủ, 1: đất nền, 2: nhà phố, 3: chung cư, 4: khách sạn (tối đa)
     private int houseCost;  // Giá nâng cấp mỗi cấp nhà/khách sạn
     private Player owner;   // Người sở hữu
     private boolean colorGroupComplete; // Cờ: chủ đã đủ bộ màu (Board.updateColorGroups() set)
-    private ColorGroup colorGroup;      // ✅ Thêm: nhóm màu của ô đất (null nếu không phải đất màu)
+    private ColorGroup colorGroup;      // Nhóm màu của ô đất (null nếu không phải đất màu)
 
     //1. Constructor đầy đủ (có ColorGroup)
     public PropertySquare(int position, String name, int price, int baseRent, int houseCost, ColorGroup colorGroup) {
@@ -32,10 +32,14 @@ public class PropertySquare extends Square {
 
     //2. Tính tiền thuê nhà
     public int getRent() {
-        if (houseLevel < 0 || houseLevel >= RENT_MULTIPLIERS.length) { return baseRent; }
-        // ✅ Đất trống nhưng đã đủ bộ màu → tiền thuê gấp đôi
-        if (houseLevel == 0 && colorGroupComplete) { return baseRent * 2; }
-        return baseRent * RENT_MULTIPLIERS[houseLevel];
+        return getRentForLevel(this.houseLevel);
+    }
+
+    public int getRentForLevel(int level) {
+        if (level <= 0 || level >= RENT_MULTIPLIERS.length) { return baseRent; }
+        // Đất nền nhưng đã đủ bộ màu → tiền thuê gấp đôi
+        if (level == 1 && colorGroupComplete) { return baseRent * 2; }
+        return baseRent * RENT_MULTIPLIERS[level];
     }
 
     //3. Hiệu ứng xử lý khi có người đặt chân vào ô đất
@@ -62,23 +66,23 @@ public class PropertySquare extends Square {
     public boolean canBuy(Player p) {
         return owner == null && p.getBalance() >= price;
     }
-    // Thực hiện mua đất
+    // Thực hiện mua đất (bắt đầu từ Cấp 1: Đất nền)
     public boolean buyProperty(Player p) {
         if (canBuy(p)) {
             p.deductMoney(price);
             this.owner = p;
-            this.houseLevel = 0; // Sau khi mua là đất trống (houseLevel=0), chỉ khi xây nhà mới tăng cấp
+            this.houseLevel = 1; // Bắt đầu từ Cấp 1: Đất nền
             p.addProperty(this);
             return true;
         }
         return false;
     }
 
-    // Kiểm tra có thể nâng cấp (chỉ được nâng cấp khi đã đủ bộ màu theo RULES.md)
+    // Kiểm tra có thể nâng cấp (+1 cấp mỗi lần vào, tối đa 4 cấp)
     public boolean canUpgrade(Player p) {
-        return owner == p && houseCost > 0 && colorGroupComplete && houseLevel < 5 && p.getBalance() >= houseCost;
+        return owner == p && houseCost > 0 && houseLevel >= 1 && houseLevel < 4 && p.getBalance() >= houseCost;
     }
-    // Thực hiện nâng cấp nhà/khách sạn (nâng 1 cấp 1 lần)
+    // Thực hiện nâng cấp nhà/khách sạn (+1 cấp)
     public boolean upgrade(Player p) {
         if (canUpgrade(p)) {
             p.deductMoney(houseCost);
@@ -95,6 +99,8 @@ public class PropertySquare extends Square {
     public int getBaseRent() { return baseRent; }
     public int getHouseCost() { return houseCost; }
     public ColorGroup getColorGroup() { return colorGroup; }
+    public void setOwner(Player owner) { this.owner = owner; }
+    public void setHouseLevel(int houseLevel) { this.houseLevel = houseLevel; }
     public boolean isColorGroupComplete() { return colorGroupComplete; }
     public void setColorGroupComplete(boolean colorGroupComplete) {
         this.colorGroupComplete = colorGroupComplete;
@@ -115,7 +121,7 @@ public class PropertySquare extends Square {
      */
     public void transferPropertyTo(Player newOwner) {
         this.owner = newOwner;
-        this.houseLevel = 0; // Xóa nhà theo luật
+        this.houseLevel = 1; // Giữ ở mức Đất nền (Cấp 1) cho chủ mới
         this.colorGroupComplete = false;
         newOwner.addProperty(this);
     }

@@ -203,7 +203,7 @@ public class GameEngine {
             PropertySquare prop = (PropertySquare) sq;
             if (prop.getOwner() == p && prop.canUpgrade(p)) {
                 if (prop.upgrade(p)) {
-                    String lvl = prop.getHouseLevel() == 5 ? "Khách sạn" : "Cấp " + prop.getHouseLevel();
+                    String lvl = prop.getHouseLevel() == 4 ? "Khách sạn (Cấp 4)" : (prop.getHouseLevel() == 3 ? "Chung cư (Cấp 3)" : (prop.getHouseLevel() == 2 ? "Nhà phố (Cấp 2)" : "Đất nền (Cấp 1)"));
                     msg(p.getName() + " nâng cấp " + prop.getName() + " -> " + lvl + " (-$" + prop.getHouseCost() + ")");
                     emit(l -> l.onBoardUpdated());
                 }
@@ -213,6 +213,52 @@ public class GameEngine {
         }
         // Mỗi lần vào chỉ được nâng cấp tối đa 1 lần → Kết thúc lượt
         finishRollPhase();
+    }
+
+    /** Người chơi mua đất hoặc nâng cấp thêm 1 cấp từ BuildPropertyDialog */
+    public void actionBuild(boolean doBuy, int targetLevel, int totalCost) {
+        Player p = getCurrentPlayer();
+        Square sq = board.getSquare(p.getPosition());
+
+        String[] levelNames = {"", "Đất nền (Cấp 1)", "Nhà phố (Cấp 2)", "Chung cư (Cấp 3)", "Khách sạn (Cấp 4)"};
+
+        if (phase == TurnPhase.WAITING_BUY) {
+            if (!doBuy || !(sq instanceof PropertySquare)) {
+                actionBuy(false);
+                return;
+            }
+            PropertySquare prop = (PropertySquare) sq;
+            if (p.getBalance() >= totalCost) {
+                p.deductMoney(totalCost);
+                prop.setOwner(p);
+                prop.setHouseLevel(1); // Cấp 1: Đất nền
+                p.addProperty(prop);
+                board.updateColorGroups();
+
+                msg(p.getName() + " mua " + prop.getName() + " [Đất nền - Cấp 1] ($" + totalCost + ")");
+                emit(l -> l.onBoardUpdated());
+            } else {
+                actionBuy(true);
+            }
+            finishRollPhase();
+        } else if (phase == TurnPhase.WAITING_UPGRADE) {
+            if (!doBuy || !(sq instanceof PropertySquare)) {
+                actionUpgrade(-1);
+                return;
+            }
+            PropertySquare prop = (PropertySquare) sq;
+            if (prop.getOwner() == p && p.getBalance() >= totalCost) {
+                p.deductMoney(totalCost);
+                prop.setHouseLevel(targetLevel);
+                String lvlStr = (targetLevel >= 1 && targetLevel <= 4) ? levelNames[targetLevel] : ("Cấp " + targetLevel);
+                msg(p.getName() + " nâng cấp " + prop.getName() + " -> " + lvlStr + " (-$" + totalCost + ")");
+                emit(l -> l.onBoardUpdated());
+            } else {
+                actionUpgrade(-1);
+                return;
+            }
+            finishRollPhase();
+        }
     }
 
     // =========================================================
@@ -374,12 +420,10 @@ public class GameEngine {
                     return;
                 } else if (prop.getHouseCost() > 0) {
                     String reason;
-                    if (prop.getHouseLevel() >= 5) {
+                    if (prop.getHouseLevel() >= 4) {
                         reason = "Bất động sản này đã đạt cấp tối đa (Khách sạn).";
-                    } else if (!prop.isColorGroupComplete()) {
-                        reason = "Bạn cần sở hữu trọn bộ màu " + (prop.getColorGroup() != null ? prop.getColorGroup().name() : "") + " để có thể xây nhà.";
                     } else if (p.getBalance() < prop.getHouseCost()) {
-                        reason = "Phí xây nhà là $" + prop.getHouseCost() + ", nhưng bạn chỉ có $" + p.getBalance() + " (không đủ tiền).";
+                        reason = "Phí nâng cấp là $" + prop.getHouseCost() + ", nhưng bạn chỉ có $" + p.getBalance() + " (không đủ tiền).";
                     } else {
                         reason = "Chưa đủ điều kiện nâng cấp lúc này.";
                     }

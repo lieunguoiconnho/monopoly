@@ -272,10 +272,8 @@ public class GameController {
     private void handleCurrentSquareUpgrade(Player p, PropertySquare prop) {
         if (!prop.canUpgrade(p)) {
             if (prop.getHouseCost() > 0) {
-                if (prop.getHouseLevel() >= 5) {
+                if (prop.getHouseLevel() >= 4) {
                     System.out.println("🏨 " + prop.getName() + " đã đạt cấp tối đa (Khách sạn).");
-                } else if (!prop.isColorGroupComplete()) {
-                    System.out.println("ℹ Bạn cần sở hữu trọn bộ màu để xây nhà trên " + prop.getName() + ".");
                 } else if (p.getBalance() < prop.getHouseCost()) {
                     System.out.println("💸 Bạn không đủ $" + prop.getHouseCost() + " để nâng cấp ô này.");
                 }
@@ -283,8 +281,8 @@ public class GameController {
             return;
         }
 
-        String curLevel = prop.getHouseLevel() == 0 ? "Đất trống" : ("Cấp " + prop.getHouseLevel() + " 🏠");
-        String nextLevel = prop.getHouseLevel() == 4 ? "Khách sạn 🏨" : ("Cấp " + (prop.getHouseLevel() + 1) + " 🏠");
+        String curLevel = prop.getHouseLevel() == 1 ? "Đất nền (Cấp 1)" : (prop.getHouseLevel() == 2 ? "Nhà phố (Cấp 2)" : (prop.getHouseLevel() == 3 ? "Chung cư (Cấp 3)" : "Cấp " + prop.getHouseLevel()));
+        String nextLevel = prop.getHouseLevel() == 3 ? "Khách sạn (Cấp 4) 🏨" : (prop.getHouseLevel() == 2 ? "Chung cư (Cấp 3) 🏢" : "Nhà phố (Cấp 2) 🏠");
         System.out.printf("\n%s đang vào ô đất của mình: \"%s\" (hiện tại: %s)%n", p.getName(), prop.getName(), curLevel);
         System.out.printf("Bạn có muốn nâng cấp lên %s với giá $%d? (1=Có / 2=Không): ", nextLevel, prop.getHouseCost());
         int choice = readInt(1, 2);

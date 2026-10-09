@@ -180,8 +180,8 @@ public class Board {
             if (sq instanceof PropertySquare) {
                 PropertySquare prop = (PropertySquare) sq;
                 if (prop.getOwner() != null) {
-                    String level = prop.getHouseLevel() == 5 ? "🏨" :
-                                   prop.getHouseLevel() > 0  ? "🏠×" + prop.getHouseLevel() : "";
+                    String level = prop.getHouseLevel() >= 4 ? "🏨" :
+                                   prop.getHouseLevel() > 1  ? "🏠×" + (prop.getHouseLevel() - 1) : "🚩";
                     System.out.printf("  Ô %2d: %-30s → %-15s %s%n",
                             prop.getPosition(), prop.getName(),
                             prop.getOwner().getName(), level);

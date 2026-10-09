@@ -493,20 +493,11 @@ public class GameUI extends JFrame implements GameEngine.GameListener {
             buyPromptLabel.setText("Mua " + trunc(prop.getName(),14) + " ($" + prop.getPrice() + ")?");
             showCard("BUY");
 
-            int res = JOptionPane.showConfirmDialog(
-                GameUI.this,
-                "<html><div style='font-family:sans-serif;padding:6px;width:250px;'>"
-                + "<h3 style='color:#00C3AF;margin:0 0 6px 0;'>THÔNG BÁO MUA ĐẤT</h3>"
-                + "<p>Người chơi: <b>" + p.getName() + "</b></p>"
-                + "<p>Dừng tại: <b>" + prop.getName() + "</b> (Ô " + prop.getPosition() + ")</p>"
-                + "<p>Giá bán: <b style='color:#3CD078;'>$" + prop.getPrice() + "</b> | Số dư: <b>$" + p.getBalance() + "</b></p>"
-                + "<p>Bạn có muốn mua bất động sản này không?</p></div></html>",
-                "Mua Đất - " + prop.getName(),
-                JOptionPane.YES_NO_OPTION,
-                JOptionPane.QUESTION_MESSAGE
-            );
-            if (res == JOptionPane.YES_OPTION) {
-                engine.actionBuy(true);
+            BuildPropertyDialog dlg = new BuildPropertyDialog(GameUI.this, p, prop, false);
+            dlg.setVisible(true);
+
+            if (dlg.isConfirmed()) {
+                engine.actionBuild(true, dlg.getFinalTargetLevel(), dlg.getFinalTotalCost());
             } else {
                 engine.actionBuy(false);
             }
@@ -674,31 +665,19 @@ public class GameUI extends JFrame implements GameEngine.GameListener {
             upgradeCombo.removeAllItems();
             for(PropertySquare pr:list){
                 int nextLevel=pr.getHouseLevel()+1;
-                String nextStr=nextLevel==5?"Khách sạn":("Cấp "+nextLevel);
-                String curStr=pr.getHouseLevel()==0?"Đất trống":("Cấp "+pr.getHouseLevel());
+                String nextStr=nextLevel==4?"Khách sạn (Cấp 4)":(nextLevel==3?"Chung cư (Cấp 3)":(nextLevel==2?"Nhà phố (Cấp 2)":"Cấp "+nextLevel));
+                String curStr=pr.getHouseLevel()==1?"Đất nền (Cấp 1)":(pr.getHouseLevel()==2?"Nhà phố (Cấp 2)":(pr.getHouseLevel()==3?"Chung cư (Cấp 3)":"Cấp "+pr.getHouseLevel()));
                 upgradeCombo.addItem(pr.getName()+" ($"+pr.getHouseCost()+") ["+curStr+" → "+nextStr+"]");
             }
             if(!list.isEmpty()){
                 PropertySquare pr=list.get(0);
                 showCard("UPGRADE");
 
-                int nextLevel = pr.getHouseLevel() + 1;
-                String nextStr = nextLevel == 5 ? "Khách sạn" : ("Cấp " + nextLevel);
-                int res = JOptionPane.showConfirmDialog(
-                    GameUI.this,
-                    "<html><div style='font-family:sans-serif;padding:6px;width:250px;'>"
-                    + "<h3 style='color:#508CFF;margin:0 0 6px 0;'>NÂNG CẤP BẤT ĐỘNG SẢN</h3>"
-                    + "<p>Người chơi: <b>" + p.getName() + "</b></p>"
-                    + "<p>Dừng tại ô của mình: <b>" + pr.getName() + "</b></p>"
-                    + "<p>Chi phí: <b style='color:#3CD078;'>$" + pr.getHouseCost() + "</b> để lên <b>" + nextStr + "</b></p>"
-                    + "<p>Số dư hiện tại: <b>$" + p.getBalance() + "</b></p>"
-                    + "<p>Bạn có muốn nâng cấp ô này ngay bây giờ không?</p></div></html>",
-                    "Nâng Cấp - " + pr.getName(),
-                    JOptionPane.YES_NO_OPTION,
-                    JOptionPane.QUESTION_MESSAGE
-                );
-                if (res == JOptionPane.YES_OPTION) {
-                    engine.actionUpgrade(0);
+                BuildPropertyDialog dlg = new BuildPropertyDialog(GameUI.this, p, pr, true);
+                dlg.setVisible(true);
+
+                if (dlg.isConfirmed()) {
+                    engine.actionBuild(true, dlg.getFinalTargetLevel(), dlg.getFinalTotalCost());
                 } else {
                     engine.actionUpgrade(-1);
                 }
@@ -1023,7 +1002,7 @@ public class GameUI extends JFrame implements GameEngine.GameListener {
 
                     // 3. Nhà / Khách sạn hoặc Cờ sở hữu hiển thị theo màu người chơi
                     int houseBaseY=iconY-iconR-2;
-                    if(prop.getHouseLevel()>0){
+                    if(prop.getHouseLevel()>1){
                         drawHouses(g2,prop.getHouseLevel(),cx,houseBaseY,vw,ownerCol);
                     }else{
                         drawOwnerFlag(g2,cx,houseBaseY,ownerCol);
@@ -1073,7 +1052,7 @@ public class GameUI extends JFrame implements GameEngine.GameListener {
 
                 // 3. Houses / Flag
                 int houseBaseY=r.y+20;
-                if(prop.getHouseLevel()>0){
+                if(prop.getHouseLevel()>1){
                     drawHouses(g2,prop.getHouseLevel(),cx,houseBaseY,r.width,ownerCol);
                 }else{
                     drawOwnerFlag(g2,cx,houseBaseY,ownerCol);
@@ -1216,7 +1195,7 @@ public class GameUI extends JFrame implements GameEngine.GameListener {
             }
             else if(sq instanceof PropertySquare){
                 PropertySquare prop = (PropertySquare) sq;
-                if(prop.getHouseLevel() > 0 && IMG_NHA != null){
+                if(prop.getHouseLevel() > 1 && IMG_NHA != null){
                     drawScaledImage(g2, IMG_NHA, cx, cy, maxW, maxH);
                 }
             }
@@ -1411,17 +1390,18 @@ public class GameUI extends JFrame implements GameEngine.GameListener {
 
         // ── Houses / Hotel / Flag – màu theo chủ sở hữu ────────
         private void drawHouses(Graphics2D g2,int level,int cx,int baseY,int maxW,Color ownerCol){
-            if(level<=0) return;
-            if(level==5){
+            if(level<=1) return;
+            if(level>=4){
                 drawHotel(g2,cx,baseY,Math.max(20,maxW/3),ownerCol);
                 return;
             }
-            // 1–4 houses
-            int houseW=Math.max(8,Math.min(14,(maxW-4)/(level+1)));
+            // Cấp 2: Nhà phố (1 nhà), Cấp 3: Chung cư (2 nhà)
+            int count = (level == 2) ? 1 : 2;
+            int houseW=Math.max(8,Math.min(14,(maxW-4)/(count+1)));
             int houseH=(int)(houseW*1.1);
-            int totalW=level*(houseW+2)-2;
+            int totalW=count*(houseW+2)-2;
             int startX=cx-totalW/2;
-            for(int i=0;i<level;i++){
+            for(int i=0;i<count;i++){
                 int hx=startX+i*(houseW+2);
                 drawHouseShape(g2,hx,baseY,houseW,houseH,level,ownerCol);
             }
